@@ -1,10 +1,11 @@
 import pickle, os
 from pathlib import Path
 from official.nlp import optimization  # to create AdamW optimizer
+import numpy as np
 import tensorflow as tf
 import tensorflow_hub as hub
 import tensorflow_text as text
-
+from tqdm import tqdm
 
 class classical_nlp_2_stages:
     epochs = 10
@@ -13,8 +14,8 @@ class classical_nlp_2_stages:
     num_warmup_steps = int(0.1*num_train_steps)
 
     init_lr = 3e-5
-    batch_size = 8
-    device_mode = 'CPU:0'
+    batch_size = 16
+    device_mode = 'CPU'
 
     #classical_detector = pickle.load(open(os.getcwd() + '/detector_model/nlp_classical_2_stages_detection/classical_model_full.model', 'rb'))
     classical_detector = None
@@ -56,16 +57,25 @@ class classical_nlp_2_stages:
             y_pred_np (list[int]): detection result of the provided list, each value in the list corresponds to those of the provided dataset
         """
         with tf.device(classical_nlp_2_stages.device_mode):
-            batch_size = 16
-            pred_dataset = tf.data.Dataset.from_tensor_slices(
-                (dataset)).batch(batch_size)
 
-            pred_dataset = pred_dataset.cache()
+            samples = [dataset[i:i+classical_nlp_2_stages.batch_size] for i in range(0, len(dataset), classical_nlp_2_stages.batch_size)]
 
-            first_stage_pos_preds = pred_dataset.prefetch(buffer_size=tf.data.AUTOTUNE)
+            sqli_res = []
+            for step, batch in enumerate(tqdm(samples)):
+                temp_res = classical_nlp_2_stages.nlp_detector_model.predict(batch, verbose = False)      
+                temp_res = tf.cast(tf.sigmoid(temp_res) > 0.5, tf.int32).numpy()
+                
+                sqli_res += np.reshape(temp_res, (len(temp_res))).tolist()
 
-            y_pred = classical_nlp_2_stages.nlp_detector_model.predict(first_stage_pos_preds, verbose = False)
-            y_pred_np = tf.cast(tf.sigmoid(y_pred) > 0.5, tf.int32).numpy()
+            # pred_dataset = tf.data.Dataset.from_tensor_slices(
+            #     (dataset)).batch(classical_nlp_2_stages.batch_size)
 
-            return y_pred_np
+            # pred_dataset = pred_dataset.cache()
+
+            # first_stage_pos_preds = pred_dataset.prefetch(buffer_size=tf.data.AUTOTUNE)
+
+            # y_pred = classical_nlp_2_stages.nlp_detector_model.predict(first_stage_pos_preds, verbose = False)
+            #y_pred_np = tf.cast(tf.sigmoid(y_pred) > 0.5, tf.int32).numpy()
+
+            return sqli_res
     

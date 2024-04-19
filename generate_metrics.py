@@ -14,6 +14,7 @@ from sql_validator import checkSQLValidity
 
 class metrics_generator:
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cpu")
     LSTMDetector.device = device
     CNNDetector.device = device
     sql_validator = checkSQLValidity()
@@ -123,13 +124,17 @@ class metrics_generator:
         Returns:
             list[int]: sqli result for the given queries
         """
-        samples = [queries[i:i+batch_size] for i in range(0, len(queries), batch_size)]
+        # samples = [queries[i:i+batch_size] for i in range(0, len(queries), batch_size)]
 
-        sqli_res = []
-        for step, batch in enumerate(tqdm(samples, disable=not verbose)):
-            temp_res = cls.tester.nlp_detector(batch)
+        # sqli_res = []
+        # for step, batch in enumerate(tqdm(samples, disable=not verbose)):
+        #     temp_res = cls.tester.nlp_detector(batch)
             
-            sqli_res += np.reshape(temp_res, (len(temp_res))).tolist()
+        #     sqli_res += np.reshape(temp_res, (len(temp_res))).tolist()
+
+        temp_res = cls.tester.nlp_detector(queries)
+        
+        sqli_res = np.reshape(temp_res, (len(temp_res))).tolist()
 
         return sqli_res
 
@@ -146,7 +151,7 @@ class metrics_generator:
         return cls.sql_validator.check_SQL_validity(queries)[1]['result']
 
     @classmethod
-    def generate_detection_result(cls, queries: list[str], detectors: list[str] = detector_list, batch_size: int = None
+    def generate_detection_result(cls, queries: list[str], detectors: list[str] = None, batch_size: int = None
                         , verbose: bool = True) -> dict[list]:
         """ generate detection result based on supplied queries, using the detectors implemented in the class
 
@@ -167,6 +172,9 @@ class metrics_generator:
         
         if(batch_size is None):
             batch_size = cls.batch_size
+
+        if(detectors is None):
+            detectors = detector_list
 
         invalid_detector = []
         for detector in detectors:
@@ -190,8 +198,8 @@ class metrics_generator:
 
 
     @classmethod
-    def calc_data_metrics(cls, queries: list[str], detectors: list[int] = detector_list, metrics: list[int] = None, batch_size: int = None,
-                        queries_result: dict[list] = {}, validity_result: list[int] = None, is_sqli_result: list[int] = None,
+    def calc_data_metrics(cls, queries: list[str], detectors: list[int] = None, metrics: list[int] = None, batch_size: int = None,
+                        queries_result: dict[list] = None, validity_result: list[int] = None, is_sqli_result: list[int] = None,
                         verbose: bool = True) -> dict[list]:
         """ generate metrics from the given queries, based on our paper
 
@@ -215,6 +223,12 @@ class metrics_generator:
             the generated metrics based on the queries given
         """
 
+        if(queries_result is None):
+            queries_result = {}
+
+        if(detectors is None):
+            detectors = cls.detector_list
+
         #check if any evasion detection result needs to be generated, if so, generate the result before computing the metrics
         detection_required = detectors
         for detector_result in queries_result:
@@ -229,6 +243,7 @@ class metrics_generator:
         if(validity_result is None):
             validity_result = cls.compute_validity(queries)
         
+
         if(is_sqli_result is None):
             is_sqli_result = cls.check_sqli(queries, verbose=verbose)
 
@@ -255,7 +270,7 @@ class metrics_generator:
             combined_counts = dict(zip(key, counts))
             if(1 not in combined_counts):
                 combined_counts[1] = 0
-            print('------------- metric name: {0:<45} ----------------------- \n total number: {1}, positive number: {2}, positive ratio: {3:.8g}'.format(metric_name, sample_count, combined_counts[1], combined_counts[1]/sample_count))
+            print('metric name: {0:<45}, total number: {1}, positive number: {2}, positive ratio: {3:.8g}'.format(metric_name, sample_count, combined_counts[1], combined_counts[1]/sample_count))
 
 
 if __name__ == '__main__':

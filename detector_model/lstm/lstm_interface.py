@@ -8,7 +8,6 @@ class LSTMInterface():
     def __init__(self, device, model_path, word2idx_path):
         super().__init__()
         self.device = device
-        print('loading word2idx...')
         self.word2idx = load_word2idx(word2idx_path)
         self.model, _ = initilize_lstm_model(self.device, vocab_size=len(
             self.word2idx), embed_dim=300, dropout=0.5)

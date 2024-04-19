@@ -4,8 +4,7 @@ from interface import CNNInterface
 
 
 class CNNDetector:
-    #device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    device = torch.device("cpu")
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     cur_file_location = str(pathlib.Path(__file__).parent.resolve())
 
     model_path = cur_file_location + '/model.pt'

@@ -1,10 +1,12 @@
 from tqdm import tqdm
 import torch, time, os, gc, sys
+import requests
 
 import pandas as pd
 import numpy as np
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, AutoModel, modeling_utils
 from generate_metrics import metrics_generator
+from detector_model.waf_detector.detector import WAFDetector
 
 class trained_model_tester:
     max_length = 256
@@ -90,14 +92,47 @@ class trained_model_tester:
 
 
 if __name__ == '__main__':
-    dataset = pd.read_csv('dataset/second_dataset_base_metrics.csv')
+    dataset = pd.read_csv('dataset/first_dataset_trained_metrics_8.csv')
     dataset = dataset.rename(columns={'generated_query': 'payload'})
     dataset = dataset.astype({'payload': 'U'})
+    
+    payloads = dataset['payload'].squeeze().to_list()
+    # res = requests.get('https://k0ahsdpgv5.execute-api.us-east-1.amazonaws.com/F5/test?user=' + '1\' OR 1=1;#')
+    # res = res.json()
+    # print(res)
+    # print('message' in res)
+    # res = requests.get('https://k0ahsdpgv5.execute-api.us-east-1.amazonaws.com/F5/test?user=' + '1')
+    # res = res.json()
+    # print(res)
+    # print('message' in res)
+    #res = WAFDetector.predict('https://k0ahsdpgv5.execute-api.us-east-1.amazonaws.com/F5/test?user=', payloads[:16])
+    batch_size = 32
+
+    #payloads = payloads[:256]
+
+    samples = [payloads[i:i+batch_size] for i in range(0, len(payloads), batch_size)]
+    results = []
+    evaded_count = 0
+
+    for step, batch in enumerate(tqdm(samples)):
+        res = WAFDetector.predict('https://k0ahsdpgv5.execute-api.us-east-1.amazonaws.com/F5/test?user=', batch)
+
+        results += res
+        key, counts = np.unique(res, return_counts=True)
+        combined_counts = dict(zip(key, counts))
+
+        if(len(counts) > 1):
+            evaded_count += counts[1]
+
+    print('base set', evaded_count, evaded_count / len(payloads))
+    dataset['waf_evaded_detection'] = results
+    dataset.to_csv('dataset/first_dataset_trained_metrics_8_waf.csv', index=False)
+
+    exit()
     print(dataset)
     print(dataset.columns)
-    metrics_list = dataset[['validity', 'is_sql_injection', 'ensemble_strict_evaded_detection']]
+    metrics_list = dataset[['validity', 'is_sqli', 'ensemble_strict_evaded_detection']]
     metrics_list.to_dict()
-    metrics_list['is_sqli'] = metrics_list.pop('is_sql_injection')
     metrics_list['evaded'] = metrics_list.pop('ensemble_strict_evaded_detection')
     print([name for name in metrics_list])
 
@@ -109,4 +144,17 @@ if __name__ == '__main__':
     generated_output = trained_model_tester.model_generation(tokenizer, sqli_evasion_model, samples_with_prompts)
 
     dataset['generated_query'] = pd.Series(generated_output)
+    metrics_result = metrics_generator.calc_data_metrics(dataset['generated_query'].squeeze().to_list())
+    metric_result_name_list = [metric for metric in metrics_result]
+    #metric_to_be_saved = '_evaded_detection_any'
+    for metric in metric_result_name_list:
+        if('_evaded_detection_any' not in metric and metric not in ['validity', 'is_sqli']):
+            del metrics_result[metric]
+        elif('_evaded_detection_any' in metric):
+            metrics_result[metric[:-len('_any')]] = metrics_result.pop(metric)
+
+    metrics_result_df = pd.DataFrame(list(zip(dataset['payload'].squeeze().to_list(), dataset['generated_query'])), columns=['original_query', 'generated_query'])
+    for metric, result in metrics_result.items():
+        metrics_result_df[metric] = result
+    metrics_result_df.to_csv('dataset/testing_second_trained_metrics.csv')
     print(dataset)
