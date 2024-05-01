@@ -187,7 +187,7 @@ class metrics_generator:
         samples = [queries[i:i+batch_size] for i in range(0, len(queries), batch_size)]
         detection_result = {detector: [] for detector in detectors}
 
-        for step, batch in enumerate(tqdm(samples, disable=not verbose)):
+        for step, batch in enumerate(tqdm(samples, disable=not verbose, desc='detecting')):
             for detector, detector_func in cls.detector_model.items():
                 if detector not in detectors:
                     continue
