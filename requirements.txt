@@ -1,0 +1,19 @@
+Cython==0.29.36
+thinc==8.0.17
+--extra-index-url https://pypi.nvidia.com
+spacy==3.0.6 --no-build-isolation
+scikit-learn==1.4.0
+protobuf==3.20.1
+sqlvalidator
+jellyfish
+tensorrt==8.6.1.post1
+tensorflow[and-cuda]==2.15.0
+--extra-index-url https://download.pytorch.org/whl/cu116
+torch==1.13.0+cu116 
+torchvision==0.14.0+cu116 
+torchaudio==0.13.0
+tensorflow-text==2.15.0
+tf-models-official==2.15.0
+tokenizers==0.13.3
+nltk
+transformers

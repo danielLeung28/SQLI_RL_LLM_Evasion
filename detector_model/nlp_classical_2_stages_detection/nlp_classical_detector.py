@@ -6,6 +6,8 @@ import tensorflow as tf
 import tensorflow_hub as hub
 import tensorflow_text as text
 from tqdm import tqdm
+from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
+import torch
 
 class classical_nlp_2_stages:
     epochs = 10
@@ -27,6 +29,11 @@ class classical_nlp_2_stages:
     with tf.device(device_mode):
         nlp_detector_model = tf.keras.models.load_model(Path('detector_model/nlp_classical_2_stages_detection/trained_nlp_model.keras').resolve(), 
                 custom_objects={'KerasLayer': hub.KerasLayer, 'AdamWeightDecay': optimizer, 'WarmUp': optimization.WarmUp})
+        
+        # tokenizer = AutoTokenizer.from_pretrained(os.getcwd() + 'detector_model/nlp_classical_2_stages_detection/trained_nlp_model.keras')
+        # detector_model = AutoModelForSeq2SeqLM.from_pretrained(os.getcwd() + 'detector_model/nlp_classical_2_stages_detection/trained_nlp_model.keras', 
+        #                                        torch_dtype=torch.bfloat16)
+        
 
     def __init__(self) -> None:
         self.pipeline = pickle.load(open(os.getcwd() + '/detector_model/nlp_classical_2_stages_detection/classical_model_full.model', 'rb'))
@@ -46,7 +53,7 @@ class classical_nlp_2_stages:
         return first_stage_y_pred.tolist()
 
 
-    def nlp_detector(self, dataset: list[str]) -> list[int]:
+    def nlp_detector(self, dataset: list[str], verbose: bool = True) -> list[int]:
         """
             nlp detector for a given list of string.
 
@@ -61,7 +68,7 @@ class classical_nlp_2_stages:
             samples = [dataset[i:i+classical_nlp_2_stages.batch_size] for i in range(0, len(dataset), classical_nlp_2_stages.batch_size)]
 
             sqli_res = []
-            for step, batch in enumerate(tqdm(samples)):
+            for step, batch in enumerate(tqdm(samples, disable= not verbose, desc='checking sqli')):
                 temp_res = classical_nlp_2_stages.nlp_detector_model.predict(batch, verbose = False)      
                 temp_res = tf.cast(tf.sigmoid(temp_res) > 0.5, tf.int32).numpy()
                 

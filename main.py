@@ -15,6 +15,7 @@ tokenizer = AutoTokenizer.from_pretrained('cssupport/t5-small-awesome-text-to-sq
 base_project_folder = os.getcwd()
 
 yaml = ruamel.yaml.YAML()
+yaml.preserve_quotes = True
 with open(base_project_folder + '/training_config/nlp_rl_iterative.yml') as file:
     file_info = yaml.load(file)
 

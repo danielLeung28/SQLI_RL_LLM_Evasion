@@ -6,7 +6,6 @@ import pandas as pd
 import numpy as np
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, AutoModel, modeling_utils
 from generate_metrics import metrics_generator
-from detector_model.waf_detector.detector import WAFDetector
 
 class trained_model_tester:
     max_length = 256
@@ -29,12 +28,8 @@ class trained_model_tester:
 
         if(validity == 1 and is_sqli == 1 and evaded == 1):
             prompt_template = 'Query: {0} \n for: This query can evade SQL injection detection, generate a SQL injection query that can evade detection based on the given query, when you are done, terminate the generated query'
-            #prompt_template = 'Query: {0} \n for: This query can evade SQL injection detection, gcreate more SQL injection query that can evade detection, while maintaining the same meaning as the given query, when you are done, terminate the generated query'
-            #prompt_template = 'Query: {0} \n for: This is an SQL injection query, it can avoid SQL injection detection, generate another SQL injection query by modifying this query, the new query should have the same meaning and can avoid detection, when you are done, terminate the generated query'
         elif(validity == 1 and is_sqli == 1):
             prompt_template = 'Query: {0} \n for: This is an SQL injection query, modify the query to evade SQL injection detection, when you are done, terminate the generated query'
-            #prompt_template = 'Query: {0} \n for: This is an SQL injection query, modify the query to evade SQL injection detection, it should be a SQL injection query that has the same meaning as the given query, when you are done, terminate the generated query'
-            #prompt_template = 'Query: {0} \n for: This is an SQL injection query, modify the query to evade SQL injection detection, it should be a SQL injection query that has the same meaning as the given query, when you are done, terminate the generated query'
         elif(validity == 1):
             prompt_template = 'Query: {0} \n for: This is an SQL query, modify it to be an SQL injection query that can evade detection, when you are done, terminate the generated query'
         else:
@@ -95,6 +90,14 @@ if __name__ == '__main__':
     dataset = pd.read_csv('dataset/first_dataset_trained_metrics_8.csv')
     dataset = dataset.rename(columns={'generated_query': 'payload'})
     dataset = dataset.astype({'payload': 'U'})
+
+    #TEST
+    dataset = dataset.sample(frac=1, random_state=42).reset_index(drop=True)
+
+    train_dataset = dataset.head(int(len(dataset) * 0.9))
+    test_dataset = dataset.tail(len(dataset) - len(train_dataset))
+    dataset = test_dataset.reset_index(drop=True)
+    #TEST end
     
     payloads = dataset['payload'].squeeze().to_list()
     # res = requests.get('https://k0ahsdpgv5.execute-api.us-east-1.amazonaws.com/F5/test?user=' + '1\' OR 1=1;#')
@@ -106,45 +109,32 @@ if __name__ == '__main__':
     # print(res)
     # print('message' in res)
     #res = WAFDetector.predict('https://k0ahsdpgv5.execute-api.us-east-1.amazonaws.com/F5/test?user=', payloads[:16])
-    batch_size = 32
+    batch_size = 1
 
     #payloads = payloads[:256]
-
-    samples = [payloads[i:i+batch_size] for i in range(0, len(payloads), batch_size)]
-    results = []
-    evaded_count = 0
-
-    for step, batch in enumerate(tqdm(samples)):
-        res = WAFDetector.predict('https://k0ahsdpgv5.execute-api.us-east-1.amazonaws.com/F5/test?user=', batch)
-
-        results += res
-        key, counts = np.unique(res, return_counts=True)
-        combined_counts = dict(zip(key, counts))
-
-        if(len(counts) > 1):
-            evaded_count += counts[1]
-
-    print('base set', evaded_count, evaded_count / len(payloads))
-    dataset['waf_evaded_detection'] = results
-    dataset.to_csv('dataset/first_dataset_trained_metrics_8_waf.csv', index=False)
-
-    exit()
     print(dataset)
     print(dataset.columns)
-    metrics_list = dataset[['validity', 'is_sqli', 'ensemble_strict_evaded_detection']]
+    metrics_list = dataset[['validity', 'is_sqli', 'cnn_evaded_detection']]
+
+    print(metrics_list)
     metrics_list.to_dict()
-    metrics_list['evaded'] = metrics_list.pop('ensemble_strict_evaded_detection')
+    metrics_list['evaded'] = metrics_list.pop('cnn_evaded_detection')
     print([name for name in metrics_list])
 
-    tokenizer = AutoTokenizer.from_pretrained('cssupport/t5-small-awesome-text-to-sql')
+    tokenizer = AutoTokenizer.from_pretrained('juierror/flan-t5-text2sql-with-schema-v2')
 
-    sqli_evasion_model = AutoModelForSeq2SeqLM.from_pretrained('rl4lm_exps/rl4lm_experiment/model').to('cuda')
+    sqli_evasion_model = AutoModelForSeq2SeqLM.from_pretrained('juierror/flan-t5-text2sql-with-schema-v2').to('cuda')
+    from detector_model.waf_detector.detector import WAFDetector
+    #print(sqli_evasion_model.get_memory_footprint())
+
 
     samples_with_prompts = trained_model_tester.generate_prompts_with_samples(dataset['payload'].squeeze().to_list(), metrics_list)
     generated_output = trained_model_tester.model_generation(tokenizer, sqli_evasion_model, samples_with_prompts)
 
     dataset['generated_query'] = pd.Series(generated_output)
     metrics_result = metrics_generator.calc_data_metrics(dataset['generated_query'].squeeze().to_list())
+
+    exit()
     metric_result_name_list = [metric for metric in metrics_result]
     #metric_to_be_saved = '_evaded_detection_any'
     for metric in metric_result_name_list:

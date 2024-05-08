@@ -6,6 +6,8 @@ tokenizer:
 
 reward_fn:
   id: "sqli_nlp_iter"
+  args:
+    url: "https://k0ahsdpgv5.execute-api.us-east-1.amazonaws.com/F5/test?user="
 
 datapool:
   id: "sqli_dataset_iterative"
@@ -26,7 +28,7 @@ alg:
     batch_size: 8
     verbose: 1
     learning_rate: 0.000001
-    n_epochs: 2
+    n_epochs: 1
 
   kl_div:
     coeff: 0.2
@@ -47,12 +49,15 @@ alg:
         max_new_tokens: 256
 
 train_evaluation:
-  eval_batch_size: 8
-  n_iters: 8
-  eval_every: 2
-  save_every: 2
+  eval_batch_size: 16
+  n_iters: 16
+  eval_every: 16
+  save_every: 8
   metrics:
     - id: sqli_detection_evasion_acc
+      args: {
+        url: "https://k0ahsdpgv5.execute-api.us-east-1.amazonaws.com/F5/test?user="
+      }
   generation_kwargs:
     do_sample: True
     top_k: 20

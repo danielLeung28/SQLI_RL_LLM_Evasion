@@ -18,16 +18,16 @@ class CNNDetector:
             cls.wafInterface = CNNInterface(cls.device, cls.model_path, cls.word2idx_path)
 
     @classmethod
-    def __predict_each(cls, payload):
+    def __predict_each(cls, payload, get_raw_prob):
         cls.init_interface()
         res = cls.wafInterface.get_score(payload=payload)
-        if(res > 1 or res < 0):
-            raise Exception(payload, res)
+        if(get_raw_prob):
+            return res
         return 1 if res > 0.5 else 0
     
     @classmethod
-    def predict(cls, payloads):
+    def predict(cls, payloads, get_raw_prob = False):
         res_list = []
         for payload in payloads:
-            res_list.append(cls.__predict_each(payload))
+            res_list.append(cls.__predict_each(payload, get_raw_prob))
         return res_list
