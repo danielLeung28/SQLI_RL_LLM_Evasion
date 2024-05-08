@@ -9,6 +9,7 @@ sys.path.append(os.getcwd() + '/detector_model/lstm')
 from detector_model.cnn.detector import CNNDetector
 from detector_model.lstm.detector import LSTMDetector
 from detector_model.nlp_classical_2_stages_detection.nlp_classical_detector import classical_nlp_2_stages
+from detector_model.waf_detector.detector import WAFDetector
 
 from sql_validator import checkSQLValidity
 
@@ -20,10 +21,12 @@ class metrics_generator:
     sql_validator = checkSQLValidity()
     tester = classical_nlp_2_stages()
     batch_size = 32
+    url = None
 
-    detector_model = {'cnn': CNNDetector.predict, 'lstm': LSTMDetector.predict, 'classical': tester.classical_detector}
+    detector_model = {'cnn': CNNDetector.predict, 'lstm': LSTMDetector.predict, 'classical': tester.classical_detector, 'waf': WAFDetector.predict}
     detector_list = [detector for detector in detector_model]
-    detection_metric_types = ['evaded_detection_any', 'evaded_detection_given_valid_sqli', 'evaded_overall_valid_sqli']
+    #detection_metric_types = ['evaded_detection_any', 'evaded_detection_given_valid_sqli', 'evaded_overall_valid_sqli']
+    detection_metric_types = ['evaded_overall_valid_sqli', 'evaded_detection_given_valid_sqli']
     base_metric_list = ['validity', 'is_sqli', 'is_valid_sqli']
 
     #calculate ensemble metric, which including combining all detection model in certain ways
@@ -58,7 +61,7 @@ class metrics_generator:
 
         calculated_metrics[metric_names[0]].append(1-ensemble_detected)
         calculated_metrics[metric_names[1]].append((1 if ensemble_detected < 1 else 0) if validity == 1 and is_sqli == 1 else np.nan)
-        calculated_metrics[metric_names[2]].append(1 if (validity > 0 and ensemble_detected == 0 and is_sqli == 1) else 0)
+        #calculated_metrics[metric_names[2]].append(1 if (validity > 0 and ensemble_detected == 0 and is_sqli == 1) else 0)
         
 
     #calculate all metrics based on the collected data
@@ -102,7 +105,7 @@ class metrics_generator:
 
                 calculated_metrics[metric_names[0]].append(1-res)
                 calculated_metrics[metric_names[1]].append((1 if res < 1 else 0) if sample_validity == 1 and sample_is_sqli == 1 else np.nan)
-                calculated_metrics[metric_names[2]].append(1 if (sample_validity > 0 and res == 0 and sample_is_sqli == 1) else 0)
+                #calculated_metrics[metric_names[2]].append(1 if (sample_validity > 0 and res == 0 and sample_is_sqli == 1) else 0)
                 detector_count += res
 
             cls.calc_ensemble_detection(calculated_metrics, detector_count, len(detector_res), sample_validity, sample_is_sqli)
@@ -151,7 +154,7 @@ class metrics_generator:
         return cls.sql_validator.check_SQL_validity(queries)[1]['result']
 
     @classmethod
-    def generate_detection_result(cls, queries: list[str], detectors: list[str] = None, batch_size: int = None
+    def generate_detection_result(cls, queries: list[str], validity: list[int], is_sqli: list[int], detectors: list[str] = None, batch_size: int = None
                         , verbose: bool = True) -> dict[list]:
         """ generate detection result based on supplied queries, using the detectors implemented in the class
 
@@ -187,12 +190,39 @@ class metrics_generator:
         samples = [queries[i:i+batch_size] for i in range(0, len(queries), batch_size)]
         detection_result = {detector: [] for detector in detectors}
 
+
+        ran_count = 0
+
         for step, batch in enumerate(tqdm(samples, disable=not verbose, desc='detecting')):
+            detection_required = []
+            detection_required_index = []
+            for i in range(len(batch)):
+                query_index = step * batch_size + i
+
+                if(validity[query_index] == 1 and is_sqli[query_index] == 1):
+                    detection_required.append(queries[query_index])
+                    detection_required_index.append(i)
+
+            ran_count += len(detection_required)
+
             for detector, detector_func in cls.detector_model.items():
                 if detector not in detectors:
                     continue
 
-                detection_result[detector] += detector_func(batch)
+                
+                temp_detection_result = [1 for i in range(len(batch))]
+                
+                if(len(detection_required_index) > 1):
+
+                    if(detector == 'waf'):
+                        partial_detection_result = detector_func(cls.url, detection_required)
+                    else:
+                        partial_detection_result = detector_func(detection_required)
+                        
+                    for key, val in zip(detection_required_index, partial_detection_result):
+                        temp_detection_result[key] = val
+
+                detection_result[detector] += temp_detection_result
 
         return detection_result
 
@@ -235,10 +265,6 @@ class metrics_generator:
             if(detector_result in detectors):
                 detection_required.remove(detector_result)
         
-        if(len(detection_required) > 0):
-            temp_queries_result = cls.generate_detection_result(queries, detectors=detection_required, batch_size=batch_size, verbose=verbose)
-            for detector, detector_results in temp_queries_result.items():
-                queries_result[detector] = detector_results
 
         if(validity_result is None):
             validity_result = cls.compute_validity(queries)
@@ -246,6 +272,13 @@ class metrics_generator:
 
         if(is_sqli_result is None):
             is_sqli_result = cls.check_sqli(queries, verbose=verbose)
+
+        if(len(detection_required) > 0):
+            temp_queries_result = cls.generate_detection_result(queries, detectors=detection_required, validity=validity_result, 
+                                                                is_sqli=is_sqli_result, batch_size=batch_size, verbose=verbose)
+            for detector, detector_results in temp_queries_result.items():
+                queries_result[detector] = detector_results
+
 
         all_metrics_dict = cls.calc_complex_metric(validity_result, is_sqli_result, queries_result)
 
@@ -278,12 +311,13 @@ if __name__ == '__main__':
     dataset = dataset.astype({'payload': 'U'})
 
     original_dataset_list = dataset['payload'].squeeze().to_list()
-
+    metrics_generator.url = "https://k0ahsdpgv5.execute-api.us-east-1.amazonaws.com/F5/test?user="
 
 
     generated_sqli = original_dataset_list
 
     metrics_result = metrics_generator.calc_data_metrics(generated_sqli)
+    exit()
 
     detector_model = {'cnn': CNNDetector.predict, 'lstm': LSTMDetector.predict, 'classical': metrics_generator.tester.classical_detector}
     detector_list = [key for key in detector_model] + ['ensemble_avg', 'ensemble_strict']

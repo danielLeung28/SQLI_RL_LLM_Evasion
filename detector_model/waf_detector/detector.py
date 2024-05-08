@@ -8,9 +8,9 @@ class WAFDetector:
         res = requests.get(base_url + payload).json()
         #print(id, payload, res)
         if('message' in res):
-            return_dict[id] = 0
-        else:
             return_dict[id] = 1
+        else:
+            return_dict[id] = 0
     
     @classmethod
     def predict(cls, base_url, payloads):
