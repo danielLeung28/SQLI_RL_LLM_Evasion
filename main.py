@@ -4,6 +4,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 import torch
 import ruamel.yaml
 import pandas as pd
+from pathlib import Path
 from generate_metrics import metrics_generator
 from test_trained_model import trained_model_tester
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
@@ -13,6 +14,11 @@ from detector_model.lstm.detector import LSTMDetector
 tokenizer = AutoTokenizer.from_pretrained('cssupport/t5-small-awesome-text-to-sql')
 
 base_project_folder = os.getcwd()
+
+try:
+    Path(base_project_folder + '/trained_model').mkdir()
+except FileExistsError:
+    pass
 
 yaml = ruamel.yaml.YAML()
 yaml.preserve_quotes = True
