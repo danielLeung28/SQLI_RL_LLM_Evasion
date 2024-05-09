@@ -46,7 +46,7 @@ model_path_folder = os.getcwd() + '/rl4lm_exps/rl4lm_experiment'
 trained_model_tester.batch_size = 64
 metrics_generator.tester.batch_size = 64
 metrics_generator.tester.device_mode = '/GPU:0'
-metrics_generator.url = "https://k0ahsdpgv5.execute-api.us-east-1.amazonaws.com/F5/test?user="
+metrics_generator.url = file_info['reward_fn']['args']['url']
 
 def eval_model(sqli_evasion_model, tokenizer, query_eval, metrics_for_queries, verbose = True):
     samples_in_prompts = trained_model_tester.generate_prompts_with_samples(query_eval, metrics_for_queries)
