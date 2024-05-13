@@ -46,7 +46,7 @@ metrics_list = test_dataset[chosen_metrics_list].to_dict('list')
 metrics_list['evaded'] = metrics_list.pop(chosen_metrics_list[-1])
 
 train_dataset.to_csv('dataset/training_dataset.csv', index=False)
-n_iters = 16
+n_iters = 32
 model_path_folder = os.getcwd() + '/rl4lm_exps/rl4lm_experiment'
 
 trained_model_tester.batch_size = 64
@@ -94,7 +94,7 @@ for i in range(n_iters):
         sqli_evasion_model = AutoModelForSeq2SeqLM.from_pretrained(base_project_folder + '/trained_model/model_iter_' + str(i+1)).to('cuda')
 
         metrics_result_df = eval_model(sqli_evasion_model, tokenizer, test_dataset['original_query'].squeeze().to_list(), metrics_list)
-        metrics_result_df.to_csv('dataset/' + dataset_name[0] + '_test_trained_metrics_' + str(i) + '.csv', index=False)
+        metrics_result_df.to_csv('dataset/' + dataset_name[0] + '_test_trained_metrics_' + str(i + 1) + '.csv', index=False)
 
         print('---------------------------test set eval done---------------------------')
         

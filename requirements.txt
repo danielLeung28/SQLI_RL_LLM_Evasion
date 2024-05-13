@@ -4,6 +4,7 @@ thinc==8.0.17
 spacy==3.0.6 --no-build-isolation
 scikit-learn==1.4.0
 protobuf==3.20.1
+ruamel.yaml
 sqlvalidator
 jellyfish
 tensorrt==8.6.1.post1
